@@ -1,79 +1,102 @@
 function runEmailSync() {
   const query = buildQuery_(CONFIG);
   const threads = GmailApp.search(query, 0, CONFIG.limit);
-  const processedMessageIds = getProcessedMessageIds_();
+  const syncState = getEmailSyncState_();
+  const cutoff = getOverlapCutoff_(syncState.watermark);
   const expenses = [];
-  const newlySeenMessageIds = [];
+  const deliveredMessages = [];
   let skipped = 0;
+  let stoppedAtWatermark = false;
 
   threads.forEach(thread => {
     thread.getMessages().forEach(message => {
       const rule = findRule_(message);
       if (!rule) return;
-
-      const messageId = message.getId();
-      if (processedMessageIds[messageId]) {
-        skipped += 1;
-        return;
-      }
-
-      const email = {
-        messageId,
-        threadId: thread.getId(),
-        date: message.getDate().toISOString(),
-        from: message.getFrom(),
-        subject: message.getSubject(),
-        body: message.getPlainBody()
-      };
-      const expense = parseEmail_(rule.provider, email);
-
-      if (expense) {
-        expenses.push(expense);
-        newlySeenMessageIds.push(messageId);
-      } else {
-        Logger.log(`Could not parse ${rule.provider} email ${messageId}`);
-      }
+      deliveredMessages.push({message, rule, threadId: thread.getId()});
     });
   });
+
+  // Gmail search returns threads. Sort their individual messages so the
+  // watermark can safely stop us once we pass the overlap window.
+  deliveredMessages.sort((left, right) => right.message.getDate() - left.message.getDate());
+  const newlyDelivered = [];
+  for (const item of deliveredMessages) {
+    const message = item.message;
+    const messageDate = message.getDate();
+    if (cutoff && messageDate < cutoff) {
+      stoppedAtWatermark = true;
+      break;
+    }
+
+    const messageId = message.getId();
+    if (syncState.recentMessageIds[messageId]) {
+      skipped += 1;
+      continue;
+    }
+
+    const email = {
+      messageId,
+      threadId: item.threadId,
+      date: messageDate.toISOString(),
+      from: message.getFrom(),
+      subject: message.getSubject(),
+      body: message.getPlainBody()
+    };
+    const expense = parseEmail_(item.rule.provider, email);
+    if (expense) {
+      expenses.push(expense);
+      newlyDelivered.push({messageId, date: email.date});
+    } else {
+      Logger.log(`Could not parse ${item.rule.provider} email ${messageId}`);
+    }
+  }
 
   const result = expenses.length > 0
     ? deliverExpenses_(expenses)
     : {skippedDelivery: true};
-  rememberProcessedMessageIds_(newlySeenMessageIds);
-  Logger.log(JSON.stringify({query, found: expenses.length, skipped, ...result}));
+  rememberDeliveredMessages_(syncState, newlyDelivered);
+  Logger.log(JSON.stringify({query, found: expenses.length, skipped, stoppedAtWatermark, ...result}));
   return result;
 }
 
-function getProcessedMessageIds_() {
-  const raw = PropertiesService.getScriptProperties().getProperty("PROCESSED_GMAIL_MESSAGE_IDS");
-  if (!raw) return {};
+function getEmailSyncState_() {
+  const raw = PropertiesService.getScriptProperties().getProperty("EMAIL_SYNC_STATE");
+  if (!raw) return {watermark: null, recentMessageIds: {}};
   try {
-    return JSON.parse(raw);
+    const state = JSON.parse(raw);
+    return {
+      watermark: state.watermark || null,
+      recentMessageIds: state.recentMessageIds || {}
+    };
   } catch (error) {
-    Logger.log(`Ignoring invalid PROCESSED_GMAIL_MESSAGE_IDS: ${error.message}`);
-    return {};
+    Logger.log(`Ignoring invalid EMAIL_SYNC_STATE: ${error.message}`);
+    return {watermark: null, recentMessageIds: {}};
   }
 }
 
-function rememberProcessedMessageIds_(messageIds) {
-  if (messageIds.length === 0) return;
+function getOverlapCutoff_(watermark) {
+  if (!watermark) return null;
+  return new Date(new Date(watermark).getTime() - CONFIG.overlapMinutes * 60 * 1000);
+}
 
-  const processed = getProcessedMessageIds_();
-  const now = Date.now();
-  messageIds.forEach(messageId => { processed[messageId] = now; });
+function rememberDeliveredMessages_(state, deliveredMessages) {
+  if (deliveredMessages.length === 0) return;
 
-  const retained = Object.entries(processed)
-    .sort(([, left], [, right]) => right - left)
-    .slice(0, CONFIG.processedMessageLimit)
-    .reduce((result, [messageId, timestamp]) => {
-      result[messageId] = timestamp;
+  const newestDate = deliveredMessages.reduce(
+    (latest, item) => !latest || item.date > latest ? item.date : latest,
+    state.watermark
+  );
+  const cutoff = getOverlapCutoff_(newestDate);
+  deliveredMessages.forEach(item => { state.recentMessageIds[item.messageId] = item.date; });
+
+  state.watermark = newestDate;
+  state.recentMessageIds = Object.entries(state.recentMessageIds)
+    .filter(([, date]) => new Date(date) >= cutoff)
+    .reduce((result, [messageId, date]) => {
+      result[messageId] = date;
       return result;
     }, {});
-
-  PropertiesService.getScriptProperties().setProperty(
-    "PROCESSED_GMAIL_MESSAGE_IDS",
-    JSON.stringify(retained)
-  );
+  PropertiesService.getScriptProperties().setProperty("EMAIL_SYNC_STATE", JSON.stringify(state));
 }
 
 function deliverExpenses_(expenses) {
