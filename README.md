@@ -2,7 +2,7 @@
 
 A Google Apps Script starter for turning Thai bank transaction emails into structured expense rows in Google Sheets.
 
-It currently supports CardX credit-card transaction emails. The project is intentionally provider- and destination-agnostic: add a parser for another bank, or replace the Google Sheets adapter with your own integration.
+It currently supports CardX credit-card transaction emails and KBank transaction emails for PromptPay, Bill Payment, and Funds Transfer. The project is intentionally provider- and destination-agnostic: add a parser for another bank, or replace the Google Sheets adapter with your own integration.
 
 ## What it does
 

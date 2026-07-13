@@ -58,6 +58,7 @@ function messageMatchesRule_(message, rule) {
 function parseEmail_(provider, email) {
   switch (provider) {
     case "cardx": return parseCardxEmail_(email);
+    case "kbank": return parseKbankEmail_(email);
     default: throw new Error(`Unknown provider: ${provider}`);
   }
 }

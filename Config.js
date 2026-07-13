@@ -12,6 +12,15 @@ const CONFIG = {
       provider: "cardx",
       from: ["support@cardx.co.th"],
       subject: ["แจ้งการทำรายการผ่านบัตร"]
+    },
+    {
+      provider: "kbank",
+      from: ["KPLUS@kasikornbank.com"],
+      subject: [
+        "Result of PromptPay Funds Transfer (Success)",
+        "Result of Bill Payment (Success)",
+        "Result of Funds Transfer (Success)"
+      ]
     }
   ]
 };
