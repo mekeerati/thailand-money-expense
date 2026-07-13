@@ -47,13 +47,13 @@ In Apps Script, open **Triggers** and create a time-driven trigger for `runEmail
 
 ## Adapters
 
-`adapters/LogAdapter.js` is the default and deliberately has no external side effect:
+`Code.js` delegates the parsed records through one adapter entry point:
 
 ```js
-const result = logExpenses_(expenses);
+const result = deliverExpenses_(expenses);
 ```
 
-To use another adapter, replace that line in `Code.js`. Keep `gmail-<messageId>` as the destination's idempotency key.
+`adapters/LogAdapter.js` provides that function by default and deliberately has no external side effect. A deployment may supply a different `deliverExpenses_` implementation without changing the parsing core. Keep `gmail-<messageId>` as the destination's idempotency key.
 
 ### Google Sheets
 

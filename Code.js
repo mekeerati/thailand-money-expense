@@ -26,7 +26,7 @@ function runEmailSync() {
     });
   });
 
-  const result = logExpenses_(expenses);
+  const result = deliverExpenses_(expenses);
   Logger.log(JSON.stringify({query, found: expenses.length, ...result}));
   return result;
 }
