@@ -43,7 +43,7 @@ In the Apps Script editor, select `runEmailSync` and click **Run**. Google will 
 
 In Apps Script, open **Triggers** and create a time-driven trigger for `runEmailSync`. Every 5–15 minutes is usually sufficient.
 
-`Config.js` defaults to searching the last day of messages. Keep this small when using a frequent trigger.
+`Config.js` defaults to searching the last day of messages. Keep this small when using a frequent trigger. Processed Gmail message IDs are retained in Script Properties, so messages in an existing thread are parsed and delivered only once. This deliberately does not use Gmail labels: Gmail labels apply to an entire thread, which can hide a later transaction email in that same thread.
 
 ## Adapters
 

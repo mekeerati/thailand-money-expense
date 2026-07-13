@@ -1,15 +1,24 @@
 function runEmailSync() {
   const query = buildQuery_(CONFIG);
   const threads = GmailApp.search(query, 0, CONFIG.limit);
+  const processedMessageIds = getProcessedMessageIds_();
   const expenses = [];
+  const newlySeenMessageIds = [];
+  let skipped = 0;
 
   threads.forEach(thread => {
     thread.getMessages().forEach(message => {
       const rule = findRule_(message);
       if (!rule) return;
 
+      const messageId = message.getId();
+      if (processedMessageIds[messageId]) {
+        skipped += 1;
+        return;
+      }
+
       const email = {
-        messageId: message.getId(),
+        messageId,
         threadId: thread.getId(),
         date: message.getDate().toISOString(),
         from: message.getFrom(),
@@ -20,15 +29,51 @@ function runEmailSync() {
 
       if (expense) {
         expenses.push(expense);
+        newlySeenMessageIds.push(messageId);
       } else {
-        Logger.log(`Could not parse ${rule.provider} email ${message.getId()}`);
+        Logger.log(`Could not parse ${rule.provider} email ${messageId}`);
       }
     });
   });
 
-  const result = deliverExpenses_(expenses);
-  Logger.log(JSON.stringify({query, found: expenses.length, ...result}));
+  const result = expenses.length > 0
+    ? deliverExpenses_(expenses)
+    : {skippedDelivery: true};
+  rememberProcessedMessageIds_(newlySeenMessageIds);
+  Logger.log(JSON.stringify({query, found: expenses.length, skipped, ...result}));
   return result;
+}
+
+function getProcessedMessageIds_() {
+  const raw = PropertiesService.getScriptProperties().getProperty("PROCESSED_GMAIL_MESSAGE_IDS");
+  if (!raw) return {};
+  try {
+    return JSON.parse(raw);
+  } catch (error) {
+    Logger.log(`Ignoring invalid PROCESSED_GMAIL_MESSAGE_IDS: ${error.message}`);
+    return {};
+  }
+}
+
+function rememberProcessedMessageIds_(messageIds) {
+  if (messageIds.length === 0) return;
+
+  const processed = getProcessedMessageIds_();
+  const now = Date.now();
+  messageIds.forEach(messageId => { processed[messageId] = now; });
+
+  const retained = Object.entries(processed)
+    .sort(([, left], [, right]) => right - left)
+    .slice(0, CONFIG.processedMessageLimit)
+    .reduce((result, [messageId, timestamp]) => {
+      result[messageId] = timestamp;
+      return result;
+    }, {});
+
+  PropertiesService.getScriptProperties().setProperty(
+    "PROCESSED_GMAIL_MESSAGE_IDS",
+    JSON.stringify(retained)
+  );
 }
 
 function deliverExpenses_(expenses) {
