@@ -60,8 +60,21 @@ function runEmailSync() {
 }
 
 function getEmailSyncState_() {
-  const raw = PropertiesService.getScriptProperties().getProperty("EMAIL_SYNC_STATE");
-  if (!raw) return {watermark: null, recentMessageIds: {}};
+  const properties = PropertiesService.getScriptProperties();
+  const raw = properties.getProperty("EMAIL_SYNC_STATE");
+  if (!raw) {
+    // One-time migration from the unbounded ID cache used by older versions.
+    // It prevents the first watermark run from re-sending recent messages.
+    const legacyIds = properties.getProperty("PROCESSED_GMAIL_MESSAGE_IDS");
+    if (legacyIds) {
+      try {
+        return {watermark: null, recentMessageIds: JSON.parse(legacyIds)};
+      } catch (error) {
+        Logger.log(`Ignoring invalid PROCESSED_GMAIL_MESSAGE_IDS: ${error.message}`);
+      }
+    }
+    return {watermark: null, recentMessageIds: {}};
+  }
   try {
     const state = JSON.parse(raw);
     return {
