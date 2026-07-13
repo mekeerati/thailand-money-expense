@@ -1,32 +1,20 @@
 # Thailand Money Expense
 
-A Google Apps Script starter for turning Thai bank transaction emails into structured expense rows in Google Sheets.
+A Google Apps Script starter for parsing Thai bank transaction emails into structured expense records.
 
-It currently supports CardX credit-card transaction emails and KBank transaction emails for PromptPay, Bill Payment, and Funds Transfer. The project is intentionally provider- and destination-agnostic: add a parser for another bank, or replace the Google Sheets adapter with your own integration.
+It currently supports CardX credit-card transaction emails and KBank transaction emails for PromptPay, Bill Payment, and Funds Transfer. The default adapter only writes parsed records to the Apps Script execution log; add your own destination adapter when you are ready.
 
 ## What it does
 
 1. Searches recent Gmail messages that match a configured bank rule.
 2. Parses the transaction date, merchant, amount, card suffix, and payment method.
-3. Writes each unique Gmail message to a Google Sheet.
+3. Logs each parsed record in the Apps Script execution log.
 
 The unique key is `gmail-<messageId>`, so a transaction email is written only once even when Gmail groups several notifications into one thread.
 
 ## Quick start
 
-### 1. Create a Google Sheet
-
-Create a blank spreadsheet and copy its ID from the URL:
-
-`https://docs.google.com/spreadsheets/d/<SPREADSHEET_ID>/edit`
-
-Put that value in `Config.js`:
-
-```js
-spreadsheetId: "PASTE_YOUR_GOOGLE_SHEET_ID_HERE"
-```
-
-### 2. Create an Apps Script project
+### 1. Create an Apps Script project
 
 Create a new project at [script.google.com](https://script.google.com), then copy these files into the project:
 
@@ -34,7 +22,8 @@ Create a new project at [script.google.com](https://script.google.com), then cop
 - `Config.js`
 - `Code.js`
 - `CardXProvider.js`
-- `GoogleSheetsAdapter.js`
+- `KbankProvider.js`
+- `LogAdapter.js`
 
 Alternatively, use [clasp](https://github.com/google/clasp):
 
@@ -44,20 +33,25 @@ cp .clasp.json.example .clasp.json
 npx @google/clasp push
 ```
 
-### 3. Authorize and test
+### 2. Authorize and test
 
-In the Apps Script editor, select `runEmailSync` and click **Run**. Google will ask for access to read Gmail and write to the spreadsheet you configured.
+In the Apps Script editor, select `runEmailSync` and click **Run**. Google will ask for read-only access to Gmail. Open **Execution log** to inspect the parsed records.
 
-The first run creates a `Transactions` sheet and writes these columns:
-
-| external_ref | date | merchant | amount | currency | payment_method | provider | account_last4 |
-| --- | --- | --- | --- | --- | --- | --- | --- |
-
-### 4. Automate it
+### 3. Automate it
 
 In Apps Script, open **Triggers** and create a time-driven trigger for `runEmailSync`. Every 5–15 minutes is usually sufficient.
 
 `Config.js` defaults to searching the last day of messages. Keep this small when using a frequent trigger.
+
+## Add a destination adapter
+
+The default `LogAdapter.js` deliberately has no external side effect. To send records to Google Sheets, a database, or another service, add an adapter and replace this line in `Code.js`:
+
+```js
+const result = logExpenses_(expenses);
+```
+
+Keep the `gmail-<messageId>` value as the destination's idempotency key.
 
 ## Add a bank parser
 
@@ -85,7 +79,7 @@ Please add an anonymized email sample and a parser test case in your pull reques
 
 - This repository contains no credentials or personal identifiers.
 - `.clasp.json` is ignored because it identifies your own Apps Script project.
-- The default app only requests Gmail read access and Google Sheets access.
+- The default app requests Gmail read-only access only.
 - Do not paste credentials into source files. Use Apps Script Script Properties for any custom integration secrets.
 
 ## Contributing
