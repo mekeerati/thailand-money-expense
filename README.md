@@ -21,9 +21,11 @@ Create a new project at [script.google.com](https://script.google.com), then cop
 - `appsscript.json`
 - `Config.js`
 - `Code.js`
-- `CardXProvider.js`
-- `KbankProvider.js`
-- `LogAdapter.js`
+- `providers/CardXProvider.js`
+- `providers/KbankProvider.js`
+- `adapters/LogAdapter.js`
+- `adapters/GoogleSheetsAdapter.js`
+- `adapters/ApiAdapter.js`
 
 Alternatively, use [clasp](https://github.com/google/clasp):
 
@@ -43,15 +45,41 @@ In Apps Script, open **Triggers** and create a time-driven trigger for `runEmail
 
 `Config.js` defaults to searching the last day of messages. Keep this small when using a frequent trigger.
 
-## Add a destination adapter
+## Adapters
 
-The default `LogAdapter.js` deliberately has no external side effect. To send records to Google Sheets, a database, or another service, add an adapter and replace this line in `Code.js`:
+`adapters/LogAdapter.js` is the default and deliberately has no external side effect:
 
 ```js
 const result = logExpenses_(expenses);
 ```
 
-Keep the `gmail-<messageId>` value as the destination's idempotency key.
+To use another adapter, replace that line in `Code.js`. Keep `gmail-<messageId>` as the destination's idempotency key.
+
+### Google Sheets
+
+`adapters/GoogleSheetsAdapter.js` is an optional adapter. Set these Apps Script Script Properties, then call `writeExpensesToGoogleSheet_(expenses)`:
+
+- `SHEETS_SPREADSHEET_ID` (required)
+- `SHEETS_SHEET_NAME` (optional; defaults to `Transactions`)
+
+### HTTP API
+
+`adapters/ApiAdapter.js` is an optional example for a batch expense-import API. It maps parsed transactions to an `items` payload and sends it with a bearer key. Set these Apps Script Script Properties, then call `sendExpensesToApi_(expenses)`:
+
+- `X_API_BASE_URL`
+- `X_COMPANY_ID`
+- `X_API_KEY`
+
+It is a generic example: change the endpoint and request body to match your own API before enabling it.
+
+## Project layout
+
+```text
+providers/   Bank and card email parsers
+adapters/    Output implementations (log, Google Sheets, HTTP API)
+Code.js      Search, parse, and route the transactions
+Config.js    Search rules and provider configuration
+```
 
 ## Add a bank parser
 
@@ -79,7 +107,8 @@ Please add an anonymized email sample and a parser test case in your pull reques
 
 - This repository contains no credentials or personal identifiers.
 - `.clasp.json` is ignored because it identifies your own Apps Script project.
-- The default app requests Gmail read-only access only.
+- The default path is log-only; it does not write to Sheets or call an HTTP API.
+- The manifest includes Google Sheets and external-request scopes so the optional adapters can be enabled without editing the manifest.
 - Do not paste credentials into source files. Use Apps Script Script Properties for any custom integration secrets.
 
 ## Contributing
