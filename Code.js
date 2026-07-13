@@ -31,6 +31,13 @@ function runEmailSync() {
   return result;
 }
 
+function deliverExpenses_(expenses) {
+  if (typeof deliverExpensesWithCustomAdapter_ === "function") {
+    return deliverExpensesWithCustomAdapter_(expenses);
+  }
+  return logExpenses_(expenses);
+}
+
 function buildQuery_(config) {
   const ruleFilters = config.rules.map(rule => {
     const fromFilters = (rule.from || []).map(value => `from:${value}`);

@@ -24,7 +24,6 @@ Create a new project at [script.google.com](https://script.google.com), then cop
 - `providers/CardXProvider.js`
 - `providers/KbankProvider.js`
 - `adapters/LogAdapter.js`
-- `adapters/AdapterRegistry.js`
 - `adapters/GoogleSheetsAdapter.js`
 - `adapters/ApiAdapter.js`
 
@@ -54,7 +53,7 @@ In Apps Script, open **Triggers** and create a time-driven trigger for `runEmail
 const result = deliverExpenses_(expenses);
 ```
 
-`adapters/LogAdapter.js` registers the default `log` adapter, which deliberately has no external side effect. Choose an adapter through the `EXPENSE_ADAPTER` Apps Script Script Property; its default is `log`. A private deployment can add and register another adapter without changing the parsing core. Keep `gmail-<messageId>` as the destination's idempotency key.
+`adapters/LogAdapter.js` provides the default behavior and deliberately has no external side effect. A private deployment can add `deliverExpensesWithCustomAdapter_` without changing the parsing core. Keep `gmail-<messageId>` as the destination's idempotency key.
 
 ### Google Sheets
 
